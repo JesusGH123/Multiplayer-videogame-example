@@ -25,11 +25,22 @@ public class PlayerController : MonoBehaviour
     private bool isGrounded;
     public LayerMask groundLayers;
 
+    public GameObject bulletImpact;
+    //public float timeBetweenShots = 0.1f;
+    private float shotCounter;
+    public float muzzleDisplayTime;
+    private float muzzleCounter;
+
+    public Gun[] guns;
+    private int selectedGun;
+
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;   //Cursor dissapears when the game starts
 
         cam = Camera.main;  //Find the main camera
+
+        SwitchGun();
     }
 
     void Update()
@@ -70,6 +81,41 @@ public class PlayerController : MonoBehaviour
 
         charCon.Move(movement * Time.deltaTime);
 
+        //Shooting
+        if (guns[selectedGun].muzzleFlash.activeInHierarchy)
+        {
+            muzzleCounter -= Time.deltaTime;
+            
+            if(muzzleCounter <= 0) guns[selectedGun].muzzleFlash.SetActive(false);     //Deactivate muzzle flash
+        }
+
+        if(Input.GetMouseButtonDown(0)) 
+            Shoot();
+
+        if (Input.GetMouseButton(0) && guns[selectedGun].isAutomatic)
+        {
+            shotCounter -= Time.deltaTime;
+
+            if(shotCounter <= 0)
+            {
+                Shoot();
+            }
+        }
+
+        //Gun control
+        if(Input.GetAxisRaw("Mouse ScrollWheel") > 0)
+        {
+            selectedGun++;
+
+            if (selectedGun >= guns.Length) selectedGun = 0;
+            SwitchGun();
+        } else if(Input.GetAxisRaw("Mouse ScrollWheel") < 0) {
+            selectedGun--;
+
+            if (selectedGun < 0) selectedGun = guns.Length - 1;
+            SwitchGun();
+        }
+
         //Exit the game
         if(Input.GetKeyDown(KeyCode.Escape))
         {
@@ -81,9 +127,40 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    private void Shoot()
+    {
+        Ray ray = cam.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0));
+        ray.origin = cam.transform.position;
+
+        if(Physics.Raycast(ray, out RaycastHit hit))
+        {
+            Debug.Log("Hitted " + hit.collider.gameObject.name);
+            GameObject bulletImpactObj = Instantiate(bulletImpact, hit.point + (hit.normal * 0.002f), Quaternion.LookRotation(hit.normal, Vector3.up));
+            Destroy(bulletImpactObj, 10f);
+        }
+
+        shotCounter = guns[selectedGun].timeBetweenShots;
+
+        guns[selectedGun].muzzleFlash.SetActive(true);
+        muzzleCounter = muzzleDisplayTime;
+    }
+
     private void LateUpdate()
     {
         cam.transform.position = viewPoint.position;
         cam.transform.rotation = viewPoint.rotation;
+    }
+
+    void SwitchGun()
+    {
+        //Deactivate all weapons
+        foreach (Gun gun in guns)
+        {
+            gun.gameObject.SetActive(false);
+        }
+        //Activate current weapon
+        guns[selectedGun].gameObject.SetActive(true);
+
+        guns[selectedGun].muzzleFlash.SetActive(false);
     }
 }
