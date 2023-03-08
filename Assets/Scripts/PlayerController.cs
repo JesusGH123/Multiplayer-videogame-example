@@ -40,7 +40,12 @@ public class PlayerController : MonoBehaviour
 
         cam = Camera.main;  //Find the main camera
 
-        SwitchGun();
+        SwitchGun();    //Set initial weapon
+
+        //Configuring spawnpoint
+        Transform spawnPoint = SpawnManager.instance.GetSpawnPoint();
+        transform.position = spawnPoint.position;
+        transform.rotation = spawnPoint.rotation;
     }
 
     void Update()
