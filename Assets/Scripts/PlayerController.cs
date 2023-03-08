@@ -121,7 +121,16 @@ public class PlayerController : MonoBehaviour
             SwitchGun();
         }
 
-        //Exit the game
+        for (int i = 0; i < guns.Length; i++)
+        {
+            if (Input.GetKeyDown((i + 1).ToString()))
+            {
+                selectedGun = i;
+                SwitchGun();
+            }
+        }
+
+        //Cursor behaviour
         if(Input.GetKeyDown(KeyCode.Escape))
         {
             Cursor.lockState = CursorLockMode.None;
