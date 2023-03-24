@@ -37,18 +37,41 @@ public class PlayerController : MonoBehaviourPunCallbacks
 
     public GameObject playerHitImpact;
 
+    public int maxHealth = 100;
+    private int currentHealth;
+
+    public Animator animator;
+    public GameObject playerModel;
+    public Transform modelGunPoint, gunHolder;
+
     void Start()
     {
         Cursor.lockState = CursorLockMode.Locked;   //Cursor dissapears when the game starts
 
         cam = Camera.main;  //Find the main camera
 
-        SwitchGun();    //Set initial weapon
+        //itchGun();    //Set initial weapon
+        photonView.RPC("SetGun", RpcTarget.All, selectedGun);
+
+        currentHealth = maxHealth;
 
         //Configuring spawnpoint (Deprecated: Functionality is now handled in PlayerSpawner)
         /*Transform spawnPoint = SpawnManager.instance.GetSpawnPoint();
         transform.position = spawnPoint.position;
         transform.rotation = spawnPoint.rotation;*/
+
+        if(photonView.IsMine)
+        {
+            playerModel.SetActive(false);
+
+            UIController.instance.healthSlider.maxValue = maxHealth;
+            UIController.instance.healthSlider.value = currentHealth;
+        } else
+        {
+            gunHolder.parent = modelGunPoint;
+            gunHolder.localPosition = Vector3.zero;
+            gunHolder.localRotation = Quaternion.identity;
+        }
     }
 
     void Update()
@@ -118,14 +141,15 @@ public class PlayerController : MonoBehaviourPunCallbacks
                 selectedGun++;
 
                 if (selectedGun >= guns.Length) selectedGun = 0;
-                SwitchGun();
+                //SwitchGun();
+                photonView.RPC("SetGun", RpcTarget.All, selectedGun);
             }
             else if (Input.GetAxisRaw("Mouse ScrollWheel") < 0)
             {
                 selectedGun--;
 
                 if (selectedGun < 0) selectedGun = guns.Length - 1;
-                SwitchGun();
+                photonView.RPC("SetGun", RpcTarget.All, selectedGun);
             }
 
             for (int i = 0; i < guns.Length; i++)
@@ -133,9 +157,14 @@ public class PlayerController : MonoBehaviourPunCallbacks
                 if (Input.GetKeyDown((i + 1).ToString()))
                 {
                     selectedGun = i;
-                    SwitchGun();
+                    //SwitchGun();
+                    photonView.RPC("SetGun", RpcTarget.All, selectedGun);
                 }
             }
+
+            //Animations
+            animator.SetBool("grounded", isGrounded);
+            animator.SetFloat("speed", moveDir.magnitude);
 
             //Cursor behaviour
             if (Input.GetKeyDown(KeyCode.Escape))
@@ -164,7 +193,7 @@ public class PlayerController : MonoBehaviourPunCallbacks
             {
                 PhotonNetwork.Instantiate(playerHitImpact.name, hit.point, Quaternion.identity);
 
-                hit.collider.gameObject.GetPhotonView().RPC("DealDamage", RpcTarget.All, photonView.Owner.NickName);
+                hit.collider.gameObject.GetPhotonView().RPC("DealDamage", RpcTarget.All, photonView.Owner.NickName, guns[selectedGun].shotDamage);
             } else
             {
                 GameObject bulletImpactObj = Instantiate(bulletImpact, hit.point + (hit.normal * 0.002f), Quaternion.LookRotation(hit.normal, Vector3.up));
@@ -179,15 +208,26 @@ public class PlayerController : MonoBehaviourPunCallbacks
     }
 
     [PunRPC]    //Call this function and run at the same time to every copy of the player on the newtork
-    public void DealDamage(string damager)
+    public void DealDamage(string damager, int damageAmount)
     {
-        TakeDamage(damager);
+        TakeDamage(damager, damageAmount);
     }
 
-    public void TakeDamage(string damager)
+    public void TakeDamage(string damager, int damageAmount)
     {
-        Debug.Log(photonView.Owner.NickName + "was hitted by " + damager);
-        gameObject.SetActive(false);
+        if(photonView.IsMine)
+        {
+            currentHealth -= damageAmount;
+
+            if (currentHealth <= 0)
+            {
+                currentHealth = 0;
+
+                PlayerSpawner.instance.Die(damager);
+            }
+
+            UIController.instance.healthSlider.value = currentHealth;
+        }
     }
 
     private void LateUpdate()
@@ -211,5 +251,15 @@ public class PlayerController : MonoBehaviourPunCallbacks
         guns[selectedGun].gameObject.SetActive(true);
 
         guns[selectedGun].muzzleFlash.SetActive(false);
+    }
+
+    [PunRPC]
+    public void SetGun(int gunSwitchTo)
+    {
+        if(gunSwitchTo < guns.Length)
+        {
+            selectedGun = gunSwitchTo;
+            SwitchGun();
+        }
     }
 }
